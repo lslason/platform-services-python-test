@@ -62,6 +62,19 @@ class CustomerRewardsHandler(RewardsBaseHandler):
             self.json_args = None
 
     @coroutine
+    def get(self):
+        email = self.get_argument(name="email", default=None)
+        if email:
+            self.logger.info("MSG=Provided email, query single, EMAIL={}".format(email))
+            query = {"email_address":email}
+        else:
+            self.logger.info("MSG=No email provided, query all")
+            query = {}
+        rewards = list(self.db.customer_rewards.find(query, {"_id": 0}))
+        self.write(json.dumps(rewards))
+        
+
+    @coroutine
     def put(self):
         email = self.json_args.get("email")
         if not email:
