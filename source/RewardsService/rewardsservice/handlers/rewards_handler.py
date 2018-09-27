@@ -10,7 +10,6 @@ class RewardsBaseHandler(RequestHandler):
 
     def initialize(self):
         self.logger = logging.getLogger(self.__class__.__name__)
-        # self.logger.info("MSG=Configured logging")
 
     def prepare(self):
         self.client = MongoClient("mongodb", 27017)
@@ -80,13 +79,14 @@ class CustomerRewardsHandler(RewardsBaseHandler):
         if not email:
             raise MissingArgumentError("email")
         order_total = self.json_args.get("order_total")
-        if not order_total:
+        if order_total is None:
             raise MissingArgumentError("order_total")
-        # TODO: What if someone hands us a negative value?  Should we be in the business of refunding points?
         try:
             order_total = float(order_total)
         except ValueError:
-            raise HTTPError(status=417, reason="Order variable provided is not a float")
+            raise HTTPError(status_code=417, reason="Order variable provided is not a float")
+        if order_total <= 0:
+            raise HTTPError(status_code=417, reason="Order variable provided is less than or equal 0")
         self.logger.info("MSG=Parsed arguments, EMAIL={}, ORDER={}".format(email, order_total))
         current_customer_exists = self.db.customer_rewards.find_one({"email_address":email}, {"_id":0})
         if current_customer_exists:
@@ -111,8 +111,12 @@ class CustomerRewardsHandler(RewardsBaseHandler):
         if next_tier:
             updated_document["next_rewards_tier"] = next_tier["tier"]
             updated_document["next_rewards_tier_name"] = next_tier["rewardName"]
-            points_to_next_tier = next_tier["points"] - tier["points"]
-            points_gathered = updated_document["rewards_points"] - tier["points"]
+            if tier:
+                points_to_next_tier = next_tier["points"] - tier["points"]
+                points_gathered = updated_document["rewards_points"] - tier["points"]
+            else:
+                points_to_next_tier = next_tier["points"]
+                points_gathered = updated_document["rewards_points"]
             self.logger.info("MSG=Identified point progress, CURRENT={}, INCREMENT={}".format(points_gathered, points_to_next_tier))
             updated_document["next_rewards_tier_progress"] = round(points_gathered/points_to_next_tier, 2)
         # Handle case where user is at the maximum teir
